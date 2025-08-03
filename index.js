@@ -5,31 +5,37 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/instagram', async (req, res) => {
-  const url = req.query.url;
-  if (!url || !url.includes('instagram.com')) {
+  const igurl = req.query.url;
+  if (!igurl || !igurl.includes('instagram.com')) {
     return res.json({ error: 'Invalid Instagram URL' });
   }
 
   try {
-    const response = await axios.get(url, {
+    const { data } = await axios.get(igurl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0'
+        'User-Agent': 'Mozilla/5.0',
+        'Accept-Language': 'en-US,en;q=0.9',
       }
     });
 
-    const html = response.data;
-    const $ = cheerio.load(html);
-    const script = $('script[type="application/ld+json"]').html();
+    const videoRegex = /"video_url":"([^"]+)"/;
+    const imageRegex = /"display_url":"([^"]+)"/;
 
-    if (!script) return res.json({ error: 'No media found' });
+    const videoMatch = data.match(videoRegex);
+    const imageMatch = data.match(imageRegex);
 
-    const json = JSON.parse(script);
-    const mediaUrl = json.contentUrl || json.thumbnailUrl;
+    if (videoMatch) {
+      const videoUrl = videoMatch[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/");
+      return res.json({ success: true, url: videoUrl });
+    } else if (imageMatch) {
+      const imageUrl = imageMatch[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/");
+      return res.json({ success: true, url: imageUrl });
+    } else {
+      return res.json({ error: 'No media found' });
+    }
 
-    res.json({ success: true, url: mediaUrl });
-
-  } catch (err) {
-    res.json({ error: 'Failed to scrape' });
+  } catch (e) {
+    return res.json({ error: 'Something went wrong' });
   }
 });
 
